@@ -1,3 +1,6 @@
+import copy
+from scipy.optimize import fsolve
+
 with open("./day_2/input.txt") as f:
     line = f.readline()
 
@@ -33,5 +36,22 @@ def recursive_execute_intcode(inputs, curr_pos=0):
     return recursive_execute_intcode(inputs, curr_pos + 4)
 
 
-output = recursive_execute_intcode(code)
+def get_intcode_output(in1, in2, arr):
+    arr[1] = in1
+    arr[2] = in2
+    return recursive_execute_intcode(arr)[1][0]
+
+
+output = recursive_execute_intcode(copy.deepcopy(code))
+print(code)
 print(output)
+
+all_inputs = [(i, j) for i in range(100) for j in range(100)]
+# print(all_inputs)
+all_results = [{"input_pair": v, "output": get_intcode_output(
+    v[0], v[1], copy.deepcopy(code))} for v in all_inputs]
+matching_results = [v for v in all_results if v["output"] == 19690720]
+final_out = 'None' if len(
+    matching_results) == 0 else matching_results[0]['input_pair'][0] * 100 + matching_results[0]['input_pair'][1]
+print(
+    f"Part b result: {final_out}")
