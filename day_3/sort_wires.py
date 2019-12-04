@@ -65,7 +65,7 @@ def find_intersection_with_shortest_delay(wire_1_path, wire_2_path):
         return e2["message"]
     intersections = set(path_1.keys()).intersection(path_2.keys())
     delay_to_intersections = [
-        (k, v) for k, v in {p: path_1[p] + path_2[p] for p in intersections}.items()]
+        (p, path_1[p] + path_2[p]) for p in intersections]
     sorted_intersections = sorted(
         delay_to_intersections, key=lambda item: item[1])
     if len(sorted_intersections) > 1:
