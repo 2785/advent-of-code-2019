@@ -10,8 +10,6 @@ import (
 )
 
 func main() {
-	// testVals := []int{1002, 4, 3, 4, 33}
-	// fmt.Println(executeIntcode(testVals))
 	file, err := ioutil.ReadFile("intcodeInput.txt")
 	check(err)
 	intcodeStr := strings.Split(string(file), ",")
@@ -55,11 +53,6 @@ func executeIntcode(code []int) []int {
 				}
 			}
 			check(e)
-			// parseInt := func(s string) int {
-			// 	o, e := strconv.Atoi(s)
-			// 	check(e)
-			// 	return o
-			// }
 
 			getTwoParam = func() (int, int) {
 				p1 := code[currIndex+1]
