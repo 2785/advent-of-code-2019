@@ -42,7 +42,37 @@ func main() {
 			qualifyingNumbers = append(qualifyingNumbers, i)
 		}
 	}
+
+	additionalRule := []int{}
+	for _, v := range qualifyingNumbers {
+		byteArr := []byte(strconv.Itoa(v))
+		checkTwoPosEqual := func(first int, second int) bool {
+			inRange := func(i int) bool {
+				return i >= 0 && i < len(byteArr)
+			}
+			if !(inRange(first) && inRange((second))) {
+				return false
+			} else {
+				return byteArr[first] == byteArr[second]
+			}
+		}
+
+		ruleCheck := func() bool {
+			for i := 1; i < len(byteArr); i++ {
+				if checkTwoPosEqual(i, i-1) && !checkTwoPosEqual(i, i+1) && !checkTwoPosEqual(i, i-2) {
+					return true
+				}
+			}
+			return false
+		}()
+
+		if ruleCheck {
+			additionalRule = append(additionalRule, v)
+		}
+	}
+
 	elapsed := time.Since(start)
 	fmt.Println("Numbers of possible passwords: ", len(qualifyingNumbers))
 	fmt.Printf("Computation done in %s", elapsed)
+	fmt.Println("\nNumber of passwords satisfying additional Rule", len(additionalRule))
 }
