@@ -4,10 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-
-	"strings"
-
 	"strconv"
+	"strings"
 )
 
 type layer struct {
@@ -94,7 +92,6 @@ func makeImg(layers []layer, pixelMap map[int]string, transparentVal int) (out s
 		}
 		return strings.Join(arr, "")
 	}
-
 	for i := 0; i < height; i++ {
 		row := make([]int, width)
 		for j := 0; j < width; j++ {
