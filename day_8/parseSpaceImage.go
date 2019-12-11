@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 
@@ -14,26 +15,37 @@ type layer struct {
 	valueCount map[int]int
 }
 
-func main() {
-	// read and process image into numeric format
-	rawImg, e := ioutil.ReadFile("theImage.txt")
+func checkError(e error) {
 	if e != nil {
 		panic(e)
 	}
+}
+
+func main() {
+	// read and process image into numeric format
+	rawImg, e := ioutil.ReadFile("theImage.txt")
+	checkError(e)
 	imgStrArr := strings.Split(string(rawImg), "")
 	imgData := make([]int, len(imgStrArr))
 	for i, v := range imgStrArr {
 		imgData[i], _ = strconv.Atoi(strings.TrimSpace(v))
 	}
+	// Process image data into layers, the layer number count thing is printed in the function parselayers
+	layers, e := parseLayers(imgData, 25, 6)
+	checkError(e)
+	// Make the image to a string format
+	renderedImage, e := makeImg(layers, map[int]string{0: " ", 1: "#", 2: " "}, 2)
+	checkError(e)
+	fmt.Println(renderedImage)
+}
 
-	width, height := 25, 6
+func parseLayers(imgData []int, width, height int) (out []layer, e error) {
 	layerSize := width * height
 	if len(imgData)%layerSize != 0 {
 		panic("Input image does not have integer layers")
 	}
-
 	layerCount := len(imgData) / layerSize
-	layers := make(map[int]layer, layerCount)
+	layers := make([]layer, layerCount)
 
 	layerWithLowestZeroCount, minZeroCount := 0, layerSize
 
@@ -66,39 +78,36 @@ func main() {
 
 	fmt.Println("Layer with the lowest zero count: ", layerWithLowestZeroCount,
 		"\n#1 x #2 = ", layers[layerWithLowestZeroCount].valueCount[1]*layers[layerWithLowestZeroCount].valueCount[2])
+	return layers, nil
+}
 
-	finalMsg := make([]int, layerSize)
-
+func makeImg(layers []layer, pixelMap map[int]string, transparentVal int) (out string, e error) {
+	if len(layers) == 0 {
+		return "", errors.New("Empty image data received")
+	}
+	width, height, layerCount := len(layers[0].pixelData[0]), len(layers[0].pixelData), len(layers)
+	renderedImg := ""
 	toString := func(intArr []int) string {
 		arr := make([]string, len(intArr))
 		for i, v := range intArr {
-			switch v {
-			case 0:
-				arr[i] = " "
-			case 1:
-				arr[i] = "#"
-			default:
-				arr[i] = " "
-			}
-			// arr[i] = strconv.Itoa(v)
+			arr[i] = pixelMap[v]
 		}
 		return strings.Join(arr, "")
 	}
 
 	for i := 0; i < height; i++ {
+		row := make([]int, width)
 		for j := 0; j < width; j++ {
-			val := 2
+			val := transparentVal
 			for k := 0; k < layerCount; k++ {
-				if layers[k].pixelData[i][j] != 2 {
+				if layers[k].pixelData[i][j] != transparentVal {
 					val = layers[k].pixelData[i][j]
 					break
 				}
 			}
-			finalMsg[i*width+j] = val
+			row[j] = val
 		}
-
-		fmt.Println(toString(finalMsg[i*width : (i+1)*width]))
+		renderedImg += toString(row) + "\n"
 	}
-	// fmt.Println(toString(finalMsg))
-	// for i := 0; i < height; i++ {}
+	return renderedImg, nil
 }
