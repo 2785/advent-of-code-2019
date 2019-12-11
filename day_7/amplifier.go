@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+type amplifierState struct {
+	mem       []int
+	currIndex int
+	done      bool
+}
+
 func main() {
 	file, err := ioutil.ReadFile("intcodeInput.txt")
 	check(err)
@@ -17,36 +23,7 @@ func main() {
 		numIntcode[i], err = strconv.Atoi(v)
 		check(err)
 	}
-	// getUserInput := func(callCount int) (int, error) {
-	// 	if callCount >= 1 {
-	// 		return 0, errors.New("Multiple user input requested")
-	// 	}
-	// 	reader := bufio.NewReader(os.Stdin)
-	// 	fmt.Println("Please enter the input number")
-	// 	in, e1 := reader.ReadString('\n')
-	// 	val, e2 := strconv.Atoi(strings.TrimSpace(in))
-	// 	errMsg := ""
-	// 	if e1 != nil {
-	// 		errMsg += e1.Error()
-	// 	}
-	// 	if e2 != nil {
-	// 		errMsg += e2.Error()
-	// 	}
-	// 	var e error
-	// 	if errMsg != "" {
-	// 		e = errors.New(errMsg)
-	// 	}
-	// 	return val, e
-	// }
 
-	// integerInput := func(num int) func(int) (int, error) {
-	// 	return func(callCount int) (int, error) {
-	// 		return num, nil
-	// 	}
-	// }
-
-	// testIntcode := []int{3, 23, 3, 24, 1002, 24, 10, 24, 1002, 23, -1, 23, 101, 5, 23, 23, 1, 24, 23, 23, 4, 23, 99, 0, 0}
-	// testSequence := []int{0, 1, 2, 3, 4}
 	amplifierInput := func(phase int, input int) func(int) (int, error) {
 		return func(callCount int) (int, error) {
 			if callCount == 0 {
@@ -57,6 +34,15 @@ func main() {
 			return 0, errors.New("Input called more than 2 times")
 		}
 	}
+
+	integerInput := func(num int) func(int) (int, error) {
+		return func(callCount int) (int, error) {
+			return num, nil
+		}
+	}
+
+	// Part 1
+
 	maxOutput, maxOutputPhase := 0, []int{}
 	for _, seq := range permutations([]int{0, 1, 2, 3, 4}) {
 		currVal := 0
@@ -65,11 +51,9 @@ func main() {
 			for i, v := range numIntcode {
 				dupeIntcode[i] = v
 			}
-			o, _ := executeIntcode(dupeIntcode, amplifierInput(phase, currVal))
-			if len(o) != 1 {
-				panic("Got more than 1 output")
-			}
-			currVal = o[0]
+			_, o, _, _, _ := executeIntcode(0, dupeIntcode, amplifierInput(phase, currVal))
+
+			currVal = o
 		}
 		if currVal > maxOutput {
 			maxOutput, maxOutputPhase = currVal, seq
@@ -77,8 +61,49 @@ func main() {
 	}
 	fmt.Print("Maximum Engine Output: ", maxOutput, "\nPhase Arrangement: ", maxOutputPhase)
 
-	// o, _ := executeIntcode(testIntcode, amplifierInput(2, 0))
-	// fmt.Print(o)
+	// Part 2
+
+	maxOutput, maxOutputPhase = 0, []int{}
+	for _, seq := range permutations([]int{5, 6, 7, 8, 9}) {
+		endVal := 0
+		currVal := 0
+		amplifiers := make([]amplifierState, 5)
+		for i, v := range seq {
+			dupeIntcode := make([]int, len(numIntcode))
+			for i, v := range numIntcode {
+				dupeIntcode[i] = v
+			}
+			ampIndex, o, mem, _, _ := executeIntcode(0, dupeIntcode, amplifierInput(v, currVal))
+			amplifiers[i] = amplifierState{mem: mem, currIndex: ampIndex, done: false}
+			currVal = o
+		}
+		endVal = currVal
+		finished := false
+
+		for !finished {
+			for i, v := range amplifiers {
+				ampIndex, o, mem, done, e := executeIntcode(v.currIndex, v.mem, integerInput(currVal))
+				if e != nil {
+					panic(e)
+				}
+				if done {
+					amplifiers[i].done = true
+					finished = true
+					break
+				}
+				currVal = o
+				if i == len(amplifiers)-1 {
+					endVal = currVal
+				}
+				amplifiers[i].mem = mem
+				amplifiers[i].currIndex = ampIndex
+			}
+		}
+		if endVal > maxOutput {
+			maxOutput, maxOutputPhase = endVal, seq
+		}
+	}
+	fmt.Print("Maximum Engine Output: ", maxOutput, "\nPhase Arrangement: ", maxOutputPhase)
 }
 
 func check(e error) {
@@ -87,11 +112,8 @@ func check(e error) {
 	}
 }
 
-func executeIntcode(code []int, getInput func(callCount int) (int, error)) ([]int, []int) {
-	currIndex := 0
+func executeIntcode(currIndex int, code []int, getInput func(callCount int) (int, error)) (index int, out int, mem []int, done bool, e error) {
 	inputCallCount := 0
-	var e error
-	numericOutput := []int{}
 	for code[currIndex] != 99 {
 		numericOpcode := code[currIndex]
 		getTwoParam := func() (int, int) {
@@ -110,11 +132,13 @@ func executeIntcode(code []int, getInput func(callCount int) (int, error)) ([]in
 			ifParamPosMode = func(index int) bool {
 				if index >= 0 && index < len(poscode) {
 					return numericPosCode[len(poscode)-index-1] == 0
-				} else {
-					return true
 				}
+				return true
+
 			}
-			check(e)
+			if e != nil {
+				return 0, 0, nil, false, e
+			}
 
 			getTwoParam = func() (int, int) {
 				p1 := code[currIndex+1]
@@ -152,8 +176,8 @@ func executeIntcode(code []int, getInput func(callCount int) (int, error)) ([]in
 				p1 = code[p1]
 			}
 			// fmt.Println(p1)
-			numericOutput = append(numericOutput, p1)
 			currIndex += 2
+			return currIndex, p1, code, false, e
 		case 5:
 			p1, p2 := getTwoParam()
 			if p1 != 0 {
@@ -189,7 +213,7 @@ func executeIntcode(code []int, getInput func(callCount int) (int, error)) ([]in
 		}
 	}
 
-	return numericOutput, code
+	return 0, 0, nil, true, e
 }
 
 func permutations(arr []int) [][]int {
