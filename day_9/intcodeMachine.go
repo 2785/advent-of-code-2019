@@ -23,7 +23,10 @@ func main() {
 		}
 	}
 
-	_, out, _, _, _ := executeIntcode(0, numIntcode, integerInput(1), true)
+	// _, out, _, _, _ := executeIntcode(0, numIntcode, integerInput(1), true)
+	// fmt.Print(out)
+
+	_, out, _, _, _ := executeIntcode(0, numIntcode, integerInput(2), true)
 	fmt.Print(out)
 }
 
