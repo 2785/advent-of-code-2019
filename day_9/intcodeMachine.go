@@ -23,9 +23,9 @@ func main() {
 		}
 	}
 
+	// Part 1
 	// _, out, _, _, _ := executeIntcode(0, numIntcode, integerInput(1), true)
-	// fmt.Print(out)
-
+	// Part 2
 	_, out, _, _, _ := executeIntcode(0, numIntcode, integerInput(2), true)
 	fmt.Print(out)
 }
