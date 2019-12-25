@@ -13,6 +13,20 @@ type coordinate struct {
 	y int
 }
 
+type intcodeComputerState struct {
+	mem          []int64
+	indexPointer int
+	relativeBase int
+}
+
+func initializeIntcodeComputer(numericIntcode []int64) intcodeComputerState {
+	return intcodeComputerState{
+		mem:          numericIntcode,
+		indexPointer: 0,
+		relativeBase: 0,
+	}
+}
+
 type direction int
 
 func main() {
@@ -57,21 +71,23 @@ func main() {
 	currCoordinate := coordinate{x: 0, y: 0}
 	var currDirection direction = 0
 	path := make(map[coordinate]int)
-	var currIndex int64 = 0
+	path[coordinate{x: 0, y: 0}] = 1 // Starting condition for part 2. Remove for part 1
+	currentComputerState := initializeIntcodeComputer(numIntcode)
+
 	for {
 		color, ok := path[currCoordinate]
 		if !ok {
 			color = 0
 		}
-		ind, out, mem, fin, e := executeIntcode(currIndex, numIntcode, integerInput(color), true)
+		out, newState, fin, e := executeIntcode(currentComputerState, integerInput(color))
 		check(e)
-		currIndex = ind
-		numIntcode = mem
+		currentComputerState = newState
 		if len(out) != 2 {
 			panic("Did not get 2 outputs")
 		}
 		colorToPaint, turnCommand := out[0], out[1]
 		path[currCoordinate] = int(colorToPaint)
+		// fmt.Println(currCoordinate, colorToPaint)
 		newDirection := getNewDirection(int(turnCommand), currDirection)
 		currDirection = newDirection
 		currCoordinate = func() coordinate {
@@ -92,7 +108,47 @@ func main() {
 			break
 		}
 	}
-	fmt.Println(len(path))
+	fmt.Println(len(path)) // output for part 1
+
+	left, right, top, bottom := 0, 0, 0, 0
+	for i := range path {
+		if i.x < left {
+			left = i.x
+		}
+		if i.x > right {
+			right = i.x
+		}
+		if i.y > top {
+			top = i.y
+		}
+		if i.y < bottom {
+			bottom = i.y
+		}
+	}
+	width, height := right-left+1, top-bottom+1
+	frame := make([][]string, height)
+	for i := range frame {
+		frame[i] = make([]string, width)
+		for j := 0; j < width; j++ {
+			x, y := left+j, top-i
+			point := coordinate{x: x, y: y}
+			color, ok := path[point]
+			if !ok {
+				color = 0
+			}
+			frame[i][j] = func() string {
+				switch color {
+				case 0:
+					return "."
+				case 1:
+					return "#"
+				default:
+					panic("Unknown color")
+				}
+			}()
+		}
+		fmt.Println(strings.Join(frame[i], ""))
+	}
 }
 
 func check(e error) {
@@ -106,24 +162,37 @@ func len64(arr []int64) int64 {
 }
 
 func executeIntcode(
-	currIndex int64,
-	code []int64,
-	getInput func(callCount int) (int, error),
-	inputCallOnce bool) (index int64, output []int64, mem []int64, done bool, e error) {
+	startingState intcodeComputerState, getInput func(callCount int) (int, error),
+) (
+	output []int64, finalState intcodeComputerState, done bool, e error,
+) {
+
+	code := startingState.mem
+	currIndex := startingState.indexPointer
+	relativeBase := startingState.relativeBase
 	inputCallCount := 0
-	var relativeBase int64 = 0
-	for code[currIndex] != 99 {
+	constructNewState := func() intcodeComputerState {
+		return intcodeComputerState{
+			mem:          code,
+			indexPointer: currIndex,
+			relativeBase: relativeBase,
+		}
+	}
+	for currIndex >= 0 {
 		numericOpcode := code[currIndex]
-		getByIndex := func(pos int64) int64 {
-			if pos >= int64(len(code)) {
+
+		// define util functions
+		getByIndex := func(pos int) int64 {
+			if pos >= len(code) {
 				return 0
 			}
 			return code[pos]
 		}
-		getParams := func(paramCount int) []int64 {
-			out := make([]int64, paramCount)
+
+		getParamPositions := func(paramCount int) []int {
+			out := make([]int, paramCount)
 			for i := 0; i < paramCount; i++ {
-				out[i] = getByIndex(currIndex + 1 + int64(i))
+				out[i] = int(getByIndex(currIndex + 1 + i))
 			}
 			return out
 		}
@@ -137,90 +206,84 @@ func executeIntcode(
 				numericPosCode[i], _ = strconv.ParseInt(v, 10, 64)
 			}
 			numericOpcode, e = strconv.ParseInt(strings.Join(opcode, ""), 10, 64)
-			getParamPosition := func(paramNumber int) int64 {
-				if !(paramNumber >= 0 && paramNumber < len(poscode)) ||
-					numericPosCode[len(poscode)-paramNumber-1] == 0 {
-					return getByIndex(currIndex + int64(paramNumber) + 1)
-				}
-				c := numericPosCode[len(poscode)-paramNumber-1]
-				if c == 1 {
-					return currIndex + int64(paramNumber) + 1
-				} else if c == 2 {
-					return relativeBase + getByIndex(currIndex+int64(paramNumber)+1)
-				} else {
-					panic("Unknown parameter mode")
-				}
-			}
-			if e != nil {
-				return 0, nil, nil, false, e
-			}
 
-			getParams = func(paramCount int) []int64 {
-				out := make([]int64, paramCount)
+			check(e)
+			getParamPositions = func(paramCount int) []int {
+				getSingleParamPosition := func(paramNumber int) int {
+					if !(paramNumber >= 0 && paramNumber < len(poscode)) ||
+						numericPosCode[len(poscode)-paramNumber-1] == 0 {
+						return int(getByIndex(currIndex + paramNumber + 1))
+					}
+					c := numericPosCode[len(poscode)-paramNumber-1]
+					if c == 1 {
+						return currIndex + paramNumber + 1
+					} else if c == 2 {
+						return relativeBase + int(getByIndex(currIndex+paramNumber+1))
+					} else {
+						panic("Unknown parameter mode")
+					}
+				}
+				out := make([]int, paramCount)
 				for i := 0; i < paramCount; i++ {
-					out[i] = getParamPosition(i)
+					out[i] = getSingleParamPosition(i)
 				}
 				return out
 			}
 
 		}
 
-		write := func(pos, val int64) []int64 {
-			if pos >= len64(code) {
-				newCode := append(code, make([]int64, pos-len64(code)+1)...)
-				newCode[len(newCode)-1] = val
-				return newCode
-			} else {
-				code[pos] = val
-				return code
+		write := func(pos int, val int64) []int64 {
+			for pos >= len(code) {
+				code = append(code, 0)
 			}
-
+			code[pos] = val
+			return code
 		}
 
 		switch numericOpcode {
 		case 1:
-			params := getParams(3)
+			params := getParamPositions(3)
 			p1, p2, p3 := params[0], params[1], params[2]
 			code = write(p3, getByIndex(p1)+getByIndex(p2))
 			currIndex += 4
 		case 2:
-			params := getParams(3)
+			params := getParamPositions(3)
 			p1, p2, p3 := params[0], params[1], params[2]
 			code = write(p3, getByIndex(p1)*getByIndex(p2))
 			currIndex += 4
 		case 3:
-			params := getParams(1)
+			params := getParamPositions(1)
 			p1 := params[0]
 			in, e := getInput(inputCallCount)
 			if e != nil {
-				return currIndex, output, code, false, nil
+				return output, constructNewState(), false, nil
 			}
 			code = write(p1, int64(in))
 			inputCallCount++
 			currIndex += 2
 		case 4:
-			params := getParams(1)
+			params := getParamPositions(1)
 			p1 := params[0]
 			currIndex += 2
 			output = append(output, getByIndex(p1))
 		case 5:
-			params := getParams(2)
+			params := getParamPositions(2)
 			p1, p2 := params[0], params[1]
 			if getByIndex(p1) != 0 {
-				currIndex = getByIndex(p2)
+				currIndex = int(getByIndex(p2))
 			} else {
 				currIndex += 3
 			}
 		case 6:
-			params := getParams(2)
+			params := getParamPositions(2)
 			p1, p2 := params[0], params[1]
 			if getByIndex(p1) == 0 {
-				currIndex = getByIndex(p2)
+				currIndex = int(getByIndex(p2))
 			} else {
 				currIndex += 3
 			}
 		case 7:
-			params := getParams(3)
+			params := getParamPositions(3)
 			p1, p2, p3 := params[0], params[1], params[2]
 			val := func() int64 {
 				if getByIndex(p1) < getByIndex(p2) {
@@ -231,7 +294,7 @@ func executeIntcode(
 			code = write(p3, val)
 			currIndex += 4
 		case 8:
-			params := getParams(3)
+			params := getParamPositions(3)
 			p1, p2, p3 := params[0], params[1], params[2]
 			val := func() int64 {
 				if getByIndex(p1) == getByIndex(p2) {
@@ -242,15 +305,13 @@ func executeIntcode(
 			code = write(p3, val)
 			currIndex += 4
 		case 9:
-			params := getParams(1)
+			params := getParamPositions(1)
 			p1 := params[0]
-			relativeBase += getByIndex(p1)
+			relativeBase += int(getByIndex(p1))
 			currIndex += 2
+		default:
+			currIndex = -1
 		}
 	}
-	if code[currIndex] == 99 {
-		return 0, output, nil, true, e
-	}
-
-	return currIndex, output, code, false, e
+	return output, constructNewState(), true, e
 }
