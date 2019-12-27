@@ -1,4 +1,4 @@
-package intcodeMachine
+package intcodecomputer
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ type intcodeComputerState struct {
 	relativeBase int
 }
 
-func initializeIntcodeComputer(numericIntcode []int64) intcodeComputerState {
+func InitializeIntcodeComputer(numericIntcode []int64) intcodeComputerState {
 	return intcodeComputerState{
 		mem:          numericIntcode,
 		indexPointer: 0,
