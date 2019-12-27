@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -37,46 +38,75 @@ func main() {
 	}
 
 	// Get 'em fuel
-	fulfilled := false
-	state := make(map[string]fulfillmentState)
-	state["FUEL"] = fulfillmentState{required: 1, fulfilled: 0}
-	for !fulfilled {
-		for i, v := range state {
-			if v.required > v.fulfilled {
-				if i == "ORE" {
-					continue
-				}
-				need := v.required - v.fulfilled
-				reactionCount := need / recipes[i].prodCount
-				if need%recipes[i].prodCount != 0 {
-					reactionCount++
-				}
-				for j, r := range recipes[i].reactants {
-					val, ok := state[j]
-					if !ok {
-						val = fulfillmentState{required: 0, fulfilled: 0}
-					}
-					val.required += r * reactionCount
-					state[j] = val
-				}
-				state[i] = fulfillmentState{required: v.required, fulfilled: v.fulfilled + reactionCount*recipes[i].prodCount}
-			}
-		}
-		fulfilled = func() bool {
-			out := true
+	getOreForFuel := func(fuel int) int {
+		fulfilled := false
+		state := make(map[string]fulfillmentState)
+		state["FUEL"] = fulfillmentState{required: fuel, fulfilled: 0}
+		for !fulfilled {
 			for i, v := range state {
-				if i == "ORE" {
-					continue
-				}
 				if v.required > v.fulfilled {
-					out = false
-					return out
+					if i == "ORE" {
+						continue
+					}
+					need := v.required - v.fulfilled
+					reactionCount := need / recipes[i].prodCount
+					if need%recipes[i].prodCount != 0 {
+						reactionCount++
+					}
+					for j, r := range recipes[i].reactants {
+						val, ok := state[j]
+						if !ok {
+							val = fulfillmentState{required: 0, fulfilled: 0}
+						}
+						val.required += r * reactionCount
+						state[j] = val
+					}
+					state[i] = fulfillmentState{required: v.required, fulfilled: v.fulfilled + reactionCount*recipes[i].prodCount}
 				}
 			}
-			return out
-		}()
+			fulfilled = func() bool {
+				out := true
+				for i, v := range state {
+					if i == "ORE" {
+						continue
+					}
+					if v.required > v.fulfilled {
+						out = false
+						return out
+					}
+				}
+				return out
+			}()
+		}
+		return state["ORE"].required
 	}
-	fmt.Println("Ore required: ", state["ORE"].required)
+
+	fuelPerOre := getOreForFuel(1)
+
+	oreCapacity := 1e12
+	fuel := int(math.Round(oreCapacity / float64(fuelPerOre)))
+	fmt.Println(fuel)
+	ore := getOreForFuel(fuel)
+	lo, hi := fuel, 2*fuel
+	for float64(getOreForFuel(hi)) < oreCapacity {
+		hi += lo
+	}
+	for hi-lo >= 100 {
+		mid := (hi + lo) / 2
+		if float64(getOreForFuel(mid)) < oreCapacity {
+			lo = mid
+		} else {
+			hi = mid
+		}
+	}
+	for i := 0; i < 110; i++ {
+		ore = getOreForFuel(lo + 1)
+		if float64(ore) > oreCapacity {
+			break
+		}
+		lo++
+	}
+	fmt.Println("Max Fuel: ", lo)
 }
 
 func lineToRecipeEntry(line string) recipeEntry {
